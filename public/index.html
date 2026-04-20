@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>INKIFY - 24/7 Smart Printing</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+    <script>
+        tailwind.config = { theme: { extend: { colors: { brand: '#2563eb', dark: '#1e293b' } } } }
+    </script>
+    <style>
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-fade-in { animation: fadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
+        .glass-modal { background: rgba(0, 0, 0, 0.5); backdrop-filter: blur(4px); }
+    </style>
+</head>
+<body class="bg-gray-50 flex h-screen overflow-hidden text-gray-800">
+
+    <aside class="w-72 bg-white border-r border-gray-200 hidden md:flex flex-col shadow-sm z-10">
+        <div class="h-16 flex items-center px-6 border-b border-gray-200 bg-dark text-white">
+            <i class="fas fa-print text-blue-400 text-2xl mr-3"></i>
+            <span class="text-xl font-bold tracking-wider">INKIFY</span>
+        </div>
+        
+        <nav class="p-4 space-y-2 border-b">
+            <button onclick="switchTab('dashboard')" id="tab-dashboard" class="w-full flex items-center px-4 py-3 bg-blue-50 text-brand rounded-lg font-medium transition-all text-left">
+                <i class="fas fa-home mr-3 w-5"></i> Dashboard
+            </button>
+            <button onclick="switchTab('history')" id="tab-history" class="w-full flex items-center px-4 py-3 text-gray-600 hover:bg-gray-50 rounded-lg font-medium transition-all text-left">
+                <i class="fas fa-history mr-3 w-5 text-gray-500"></i> History & Receipts
+            </button>
+            <hr class="my-2 border-gray-200">
+            <button onclick="openModal('gpsModal'); findNearestKiosks()" class="w-full flex items-center px-4 py-3 text-gray-600 hover:bg-gray-50 rounded-lg transition-all text-left">
+                <i class="fas fa-map-marker-alt mr-3 w-5 text-red-500"></i> Kiosk Locator
+            </button>
+            <button onclick="openModal('cardModal')" class="w-full flex items-center px-4 py-3 text-gray-600 hover:bg-gray-50 rounded-lg transition-all text-left">
+                <i class="fas fa-id-card mr-3 w-5 text-purple-500"></i> Smart Card
+            </button>
+        </nav>
+    </aside>
+
+    <main class="flex-1 flex flex-col h-full overflow-y-auto bg-gray-50/50">
+        
+        <div id="view-dashboard" class="p-6 md:p-10 max-w-6xl mx-auto w-full block animate-fade-in">
+            <div class="mb-8 flex flex-col md:flex-row md:justify-between md:items-end gap-4">
+                <div>
+                    <h1 class="text-3xl font-bold text-gray-900">Dashboard</h1>
+                    <p class="text-gray-500 mt-2">Upload and configure your print jobs.</p>
+                </div>
+                <div class="flex gap-3">
+                    <button onclick="openModal('driveModal')" class="px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 shadow-sm flex items-center transition-colors">
+                        <img src="https://upload.wikimedia.org/wikipedia/commons/1/12/Google_Drive_icon_%282020%29.svg" class="w-4 h-4 mr-2" alt="Drive"> Import Drive
+                    </button>
+                </div>
+            </div>
+
+            <form id="uploadForm" class="grid grid-cols-1 xl:grid-cols-3 gap-8">
+                
+                <div class="xl:col-span-2 space-y-6">
+                    <div class="border-2 border-dashed border-brand bg-blue-50/50 rounded-2xl p-10 text-center relative hover:bg-blue-50 transition-colors shadow-inner" id="dropZone">
+                        <input type="file" id="documentInput" name="document" accept=".pdf,image/*" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10">
+                        <div id="uploadUI">
+                            <i class="fas fa-file-pdf text-5xl text-brand mb-4 drop-shadow-sm"></i>
+                            <h3 class="text-xl font-semibold text-gray-800" id="fileLabel">Click or drag PDF to upload</h3>
+                            <p class="text-sm text-gray-500 mt-2" id="fileStats">System will automatically scan and calculate costs.</p>
+                        </div>
+                    </div>
+
+                    <div id="printConfig" class="bg-white p-8 rounded-2xl border border-gray-200 shadow-sm opacity-50 pointer-events-none transition-opacity duration-300">
+                        
+                        <div class="bg-blue-50 border border-blue-100 rounded-xl p-4 mb-8 flex items-start gap-4">
+                            <i class="fas fa-tags text-brand text-xl mt-1"></i>
+                            <div>
+                                <p class="text-sm font-bold text-blue-900 mb-1">Dynamic Volume Pricing Active</p>
+                                <p class="text-xs text-blue-800 font-medium">Base Rates: B&W ₹5/pg | Color ₹15/pg. Print more to unlock massive discounts!</p>
+                                <div class="mt-2 flex flex-wrap gap-2 text-[10px] font-bold text-blue-700">
+                                    <span class="bg-white px-2 py-1 rounded border border-blue-200">10+ Pages: 20% OFF</span>
+                                    <span class="bg-white px-2 py-1 rounded border border-blue-200">50+ Pages: 40% OFF</span>
+                                    <span class="bg-white px-2 py-1 rounded border border-blue-200">100+ Pages: 60% OFF</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="flex justify-between items-center mb-4 border-b pb-4">
+                            <h3 class="font-bold text-lg text-gray-800">Advanced Page Selection</h3>
+                            <div class="flex items-center gap-4">
+                                <label class="text-sm font-bold text-gray-700">Total Copies:</label>
+                                <input type="number" id="copies" name="copies" value="1" min="1" class="w-20 border-gray-300 border rounded-lg p-2 outline-none text-center" oninput="updateCost()">
+                            </div>
+                        </div>
+
+                        <div id="printRulesContainer" class="space-y-4 mb-6">
+                            <div class="flex flex-wrap md:flex-nowrap items-center gap-4 p-4 bg-gray-50 border border-gray-200 rounded-lg rule-row">
+                                <div class="flex-1">
+                                    <label class="block text-xs font-bold text-gray-500 mb-1 uppercase tracking-wide">Pages</label>
+                                    <input type="text" placeholder="e.g. 1-5, 8" class="page-range-input w-full border border-gray-300 rounded-md p-2 outline-none focus:border-brand" oninput="updateCost()" value="1">
+                                </div>
+                                <div class="flex items-end gap-3 pt-4">
+                                    <label class="flex items-center p-2 border rounded-md bg-white cursor-pointer hover:border-brand">
+                                        <input type="checkbox" class="mr-2 text-brand" onchange="updateCost()">
+                                        <span class="text-sm font-medium">Double-sided</span>
+                                    </label>
+                                    <label class="flex items-center p-2 border rounded-md bg-white cursor-pointer hover:border-brand">
+                                        <input type="radio" name="colorMode_0" value="bw" checked class="color-radio mr-2 text-brand" onchange="updateCost()">
+                                        <span class="text-sm font-medium">B&W</span>
+                                    </label>
+                                    <label class="flex items-center p-2 border rounded-md bg-white cursor-pointer hover:border-brand">
+                                        <input type="radio" name="colorMode_0" value="color" class="color-radio mr-2 text-brand" onchange="updateCost()">
+                                        <span class="text-sm font-medium">Color</span>
+                                    </label>
+                                </div>
+                                <div class="pt-4">
+                                    <button type="button" class="p-2 text-gray-400 hover:text-red-500 transition-colors" disabled><i class="fas fa-trash"></i></button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <button type="button" onclick="addPrintRule()" class="text-sm font-bold text-brand hover:text-blue-700 flex items-center mb-8">
+                            <i class="fas fa-plus-circle mr-2"></i> Add Page Selection
+                        </button>
+                    </div>
+                </div>
+
+                <div class="relative">
+                    <div class="bg-white p-6 rounded-2xl border border-gray-200 shadow-xl sticky top-6">
+                        <h3 class="text-xl font-bold mb-6 text-gray-900">Order Summary</h3>
+                        
+                        <div class="space-y-4 text-sm text-gray-600 mb-6 pb-6 border-b border-gray-100">
+                            <div class="flex justify-between items-center">
+                                <span>B&W Pages (<span id="bwCount">0</span>)</span>
+                                <span id="bwCost" class="font-medium text-gray-400 line-through mr-2 hidden">₹0.00</span>
+                                <span id="bwFinal" class="font-medium">₹0.00</span>
+                            </div>
+                            <div class="flex justify-between items-center text-brand">
+                                <span>Color Pages (<span id="colorCount">0</span>)</span>
+                                <span id="colorCost" class="font-medium text-blue-300 line-through mr-2 hidden">₹0.00</span>
+                                <span id="colorFinal" class="font-medium">₹0.00</span>
+                            </div>
+                            
+                            <div class="flex justify-between items-center hidden text-green-600 bg-green-50 p-2 rounded-lg" id="volumeDiscountLine">
+                                <span><i class="fas fa-tags text-xs mr-1"></i> Volume Savings (<span id="discountPercent">0</span>%)</span>
+                                <span id="volumeDiscount" class="font-bold">-₹0.00</span>
+                            </div>
+                        </div>
+
+                        <div class="flex justify-between items-end mb-8">
+                            <span class="font-bold text-gray-700">Total Amount</span>
+                            <span class="text-4xl font-black text-gray-900" id="totalPrice">₹0.00</span>
+                        </div>
+
+                        <button type="submit" id="submitBtn" disabled class="w-full bg-gray-300 text-gray-500 font-bold py-4 rounded-xl flex justify-center items-center transition-all duration-200">
+                            Upload to Calculate
+                        </button>
+
+                        <div id="qr-result" class="hidden mt-6 text-center animate-fade-in">
+                            <div class="p-4 bg-white border-2 border-gray-100 rounded-2xl inline-block shadow-sm">
+                                <img src="https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=INKIFY-DEMO" alt="QR Code" class="rounded-lg">
+                            </div>
+                            <p class="text-sm font-bold text-green-600 mt-4"><i class="fas fa-check-circle mr-1"></i> Sent to Cloud Queue!</p>
+                            <p class="text-xs text-gray-500 mt-2 font-mono bg-gray-100 py-1 px-3 rounded-full inline-block" id="job-id-display"></p>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <div id="view-history" class="p-6 md:p-10 max-w-4xl mx-auto w-full hidden animate-fade-in">
+            <h1 class="text-3xl font-bold text-gray-900 mb-2">Print History</h1>
+            <p class="text-gray-500 mb-8">View past receipts and pending kiosk queues.</p>
+            
+            <div class="space-y-4" id="historyList">
+                <div class="bg-white p-5 rounded-xl border border-gray-200 shadow-sm flex items-center justify-between">
+                    <div class="flex items-center gap-4">
+                        <div class="h-12 w-12 bg-green-50 text-green-600 rounded-lg flex items-center justify-center text-xl">
+                            <i class="fas fa-check-double"></i>
+                        </div>
+                        <div>
+                            <h4 class="font-bold text-gray-800">Economics_Notes_Final.pdf</h4>
+                            <p class="text-xs text-gray-500">Printed: 2 days ago • 15 B&W Pages</p>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <p class="font-bold text-gray-900">₹30.00</p>
+                        <span class="text-xs font-bold text-green-600 bg-green-50 px-2 py-1 rounded">Completed</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <div id="driveModal" class="fixed inset-0 glass-modal hidden z-50 flex items-center justify-center"><div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden p-4"><button onclick="simulateDriveSelect('Business_Model_Canvas.pdf', 6)" class="w-full text-left p-3 border rounded hover:bg-gray-50 font-medium"><i class="fas fa-file-pdf text-red-500 mr-2"></i> Business_Model_Canvas.pdf</button><button onclick="closeModal('driveModal')" class="mt-4 text-red-500 w-full font-bold">Cancel</button></div></div>
+    
+    <div id="gpsModal" class="fixed inset-0 glass-modal hidden z-50 flex items-center justify-center">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6">
+            <h3 class="font-bold text-xl mb-4 text-gray-800"><i class="fas fa-truck-loading text-brand mr-2"></i> Kiosk Logistics & Supply</h3>
+            <p class="text-xs text-gray-500 mb-4">View physical machine locations and upcoming supply chain deliveries.</p>
+            <div id="kioskList" class="space-y-3 max-h-96 overflow-y-auto">Locating...</div>
+            <button onclick="closeModal('gpsModal')" class="mt-6 w-full border py-3 font-bold text-gray-600 hover:bg-gray-50 rounded-xl">Close</button>
+        </div>
+    </div>
+    
+    <div id="cardModal" class="fixed inset-0 glass-modal hidden z-50 flex items-center justify-center"><div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6"><h3 class="font-bold mb-4">INKIFY Smart Card</h3><button onclick="closeModal('cardModal')" class="w-full border py-2 rounded">Close</button></div></div>
+
+    <script>
+        function switchTab(tabName) {
+            document.getElementById('view-dashboard').classList.add('hidden');
+            document.getElementById('view-history').classList.add('hidden');
+            document.getElementById('tab-dashboard').className = "w-full flex items-center px-4 py-3 text-gray-600 hover:bg-gray-50 rounded-lg font-medium transition-all text-left";
+            document.getElementById('tab-history').className = "w-full flex items-center px-4 py-3 text-gray-600 hover:bg-gray-50 rounded-lg font-medium transition-all text-left";
+
+            document.getElementById(`view-${tabName}`).classList.remove('hidden');
+            document.getElementById(`tab-${tabName}`).className = "w-full flex items-center px-4 py-3 bg-blue-50 text-brand rounded-lg font-medium transition-all text-left";
+        }
+
+        function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
+        function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+
+        let totalDetectedPages = 0;
+        let isDriveFile = false;
+        let driveFileName = "";
+        let ruleCounter = 1;
+
+        function addPrintRule() {
+            const container = document.getElementById('printRulesContainer');
+            const ruleId = ruleCounter++;
+            const newRow = document.createElement('div');
+            newRow.className = "flex flex-wrap md:flex-nowrap items-center gap-4 p-4 bg-gray-50 border border-gray-200 rounded-lg rule-row animate-fade-in";
+            newRow.innerHTML = `
+                <div class="flex-1">
+                    <label class="block text-xs font-bold text-gray-500 mb-1 uppercase tracking-wide">Pages</label>
+                    <input type="text" placeholder="e.g. 1-5, 8" class="page-range-input w-full border border-gray-300 rounded-md p-2 outline-none focus:border-brand" oninput="updateCost()">
+                </div>
+                <div class="flex items-end gap-3 pt-4">
+                    <label class="flex items-center p-2 border rounded-md bg-white cursor-pointer hover:border-brand">
+                        <input type="checkbox" class="mr-2 text-brand" onchange="updateCost()">
+                        <span class="text-sm font-medium">Double-sided</span>
+                    </label>
+                    <label class="flex items-center p-2 border rounded-md bg-white cursor-pointer hover:border-brand">
+                        <input type="radio" name="colorMode_${ruleId}" value="bw" checked class="color-radio mr-2 text-brand" onchange="updateCost()">
+                        <span class="text-sm font-medium">B&W</span>
+                    </label>
+                    <label class="flex items-center p-2 border rounded-md bg-white cursor-pointer hover:border-brand">
+                        <input type="radio" name="colorMode_${ruleId}" value="color" class="color-radio mr-2 text-brand" onchange="updateCost()">
+                        <span class="text-sm font-medium">Color</span>
+                    </label>
+                </div>
+                <div class="pt-4">
+                    <button type="button" onclick="this.closest('.rule-row').remove(); updateCost();" class="p-2 text-gray-400 hover:text-red-500 transition-colors"><i class="fas fa-trash"></i></button>
+                </div>
+            `;
+            container.appendChild(newRow);
+            updateCost();
+        }
+
+        function countPagesFromInput(inputStr) {
+            if (!inputStr.trim()) return 0;
+            let pageSet = new Set();
+            let parts = inputStr.split(',');
+            for (let part of parts) {
+                part = part.trim();
+                if (part.includes('-')) {
+                    let [start, end] = part.split('-').map(Number);
+                    if (start && end && start <= end) {
+                        for (let i = start; i <= end; i++) pageSet.add(i);
+                    }
+                } else {
+                    let num = Number(part);
+                    if (num) pageSet.add(num);
+                }
+            }
+            return pageSet.size;
+        }
+
+        function updateCost() {
+            const copies = parseInt(document.getElementById('copies').value) || 1;
+
+            let totalBwPages = 0;
+            let totalColorPages = 0;
+
+            document.querySelectorAll('.rule-row').forEach(row => {
+                const pageCount = countPagesFromInput(row.querySelector('.page-range-input').value);
+                const isColor = row.querySelector('input[value="color"]').checked;
+                if (isColor) totalColorPages += pageCount;
+                else totalBwPages += pageCount;
+            });
+
+            totalColorPages *= copies;
+            totalBwPages *= copies;
+
+            const totalPages = totalColorPages + totalBwPages;
+
+            // --- Dynamic Pricing Engine ---
+            let discountPercent = 0;
+            if (totalPages >= 100) discountPercent = 60; // 60% off (B&W = ₹2)
+            else if (totalPages >= 50) discountPercent = 40; // 40% off (B&W = ₹3)
+            else if (totalPages >= 10) discountPercent = 20; // 20% off (B&W = ₹4)
+            // 1-9 pages: 0% off (B&W = ₹5)
+
+            const discountMultiplier = (100 - discountPercent) / 100;
+            
+            const baseBwRate = 5;
+            const baseColorRate = 15;
+
+            // Calculate raw costs (without discount)
+            const rawBwCost = totalBwPages * baseBwRate;
+            const rawColorCost = totalColorPages * baseColorRate;
+            const rawTotalCost = rawBwCost + rawColorCost;
+
+            // Calculate final costs (with discount)
+            const finalBwCost = rawBwCost * discountMultiplier;
+            const finalColorCost = rawColorCost * discountMultiplier;
+            const finalTotalCost = finalBwCost + finalColorCost;
+
+            const discountAmount = rawTotalCost - finalTotalCost;
+
+            // Update UI Counters
+            document.getElementById('colorCount').innerText = totalColorPages;
+            document.getElementById('bwCount').innerText = totalBwPages;
+
+            // Update UI Costs
+            if (discountPercent > 0) {
+                // Show strikethrough original prices
+                document.getElementById('bwCost').classList.remove('hidden');
+                document.getElementById('bwCost').innerText = `₹${rawBwCost.toFixed(2)}`;
+                document.getElementById('colorCost').classList.remove('hidden');
+                document.getElementById('colorCost').innerText = `₹${rawColorCost.toFixed(2)}`;
+                
+                // Show Volume Savings line
+                document.getElementById('volumeDiscountLine').classList.remove('hidden');
+                document.getElementById('discountPercent').innerText = discountPercent;
+                document.getElementById('volumeDiscount').innerText = `-₹${discountAmount.toFixed(2)}`;
+            } else {
+                // Hide strikethroughs and savings line if no discount
+                document.getElementById('bwCost').classList.add('hidden');
+                document.getElementById('colorCost').classList.add('hidden');
+                document.getElementById('volumeDiscountLine').classList.add('hidden');
+            }
+
+            document.getElementById('bwFinal').innerText = `₹${finalBwCost.toFixed(2)}`;
+            document.getElementById('colorFinal').innerText = `₹${finalColorCost.toFixed(2)}`;
+            document.getElementById('totalPrice').innerText = `₹${finalTotalCost.toFixed(2)}`;
+        }
+
+        document.getElementById('documentInput').addEventListener('change', async function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            isDriveFile = false; 
+            document.getElementById('fileLabel').innerText = file.name;
+            document.getElementById('fileStats').innerHTML = '<i class="fas fa-spinner fa-spin text-brand"></i> Scanning document...';
+            document.getElementById('qr-result').classList.add('hidden');
+
+            try {
+                const arrayBuffer = await file.arrayBuffer();
+                const pdfDoc = await PDFLib.PDFDocument.load(arrayBuffer);
+                totalDetectedPages = pdfDoc.getPageCount();
+                document.getElementById('fileStats').innerHTML = `<span class="text-green-600 font-bold"><i class="fas fa-check"></i> Scanned: ${totalDetectedPages} pages</span>`;
+                document.querySelector('.page-range-input').value = `1-${totalDetectedPages}`;
+                unlockUI();
+            } catch (err) {
+                document.getElementById('fileStats').innerText = "Ready for setup.";
+                unlockUI();
+            }
+        });
+
+        function simulateDriveSelect(fileName, pages) {
+            closeModal('driveModal');
+            isDriveFile = true;
+            driveFileName = fileName;
+            document.getElementById('fileLabel').innerText = fileName;
+            document.getElementById('fileStats').innerHTML = `<span class="text-blue-600 font-bold"><i class="fab fa-google-drive"></i> Imported: ${pages} pages</span>`;
+            totalDetectedPages = pages;
+            document.querySelector('.page-range-input').value = `1-${pages}`;
+            document.getElementById('qr-result').classList.add('hidden');
+            unlockUI();
+        }
+
+        function unlockUI() {
+            document.getElementById('printConfig').classList.remove('opacity-50', 'pointer-events-none');
+            const btn = document.getElementById('submitBtn');
+            btn.disabled = false;
+            btn.className = "w-full bg-brand text-white font-bold py-4 rounded-xl shadow-lg hover:bg-blue-700 transition-all";
+            btn.innerHTML = '<i class="fas fa-qrcode text-lg mr-2"></i> Generate Kiosk QR';
+            updateCost();
+        }
+
+        document.getElementById('uploadForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const btn = document.getElementById('submitBtn');
+            btn.innerHTML = '<i class="fas fa-circle-notch fa-spin text-lg mr-2"></i> Queuing...';
+            
+            const formData = new FormData(this);
+            const finalCostText = document.getElementById('totalPrice').innerText;
+            const fileName = isDriveFile ? driveFileName : document.getElementById('documentInput').files[0].name;
+
+            formData.append('finalCost', finalCostText);
+            if (isDriveFile) formData.append('document', new Blob(['mock'], {type: 'application/pdf'}), driveFileName);
+
+            try {
+                const response = await fetch('/api/upload', { method: 'POST', body: formData });
+                const result = await response.json();
+                
+                if (result.success) {
+                    btn.innerHTML = '<i class="fas fa-check-double text-lg mr-2"></i> Ready at Kiosk';
+                    btn.className = "w-full bg-green-600 text-white font-bold py-4 rounded-xl shadow-lg flex justify-center items-center transition-all";
+                    document.getElementById('qr-result').classList.remove('hidden');
+                    document.getElementById('job-id-display').innerText = `Scan ID: ${result.jobId}`;
+
+                    const historyList = document.getElementById('historyList');
+                    const newHistoryItem = document.createElement('div');
+                    newHistoryItem.className = "bg-white p-5 rounded-xl border border-blue-200 shadow-md flex items-center justify-between border-l-4 border-l-brand animate-fade-in";
+                    newHistoryItem.innerHTML = `
+                        <div class="flex items-center gap-4">
+                            <div class="h-12 w-12 bg-blue-50 text-brand rounded-lg flex items-center justify-center text-xl">
+                                <i class="fas fa-qrcode"></i>
+                            </div>
+                            <div>
+                                <h4 class="font-bold text-gray-800">${fileName}</h4>
+                                <p class="text-xs text-gray-500">ID: ${result.jobId} • Just Now</p>
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <p class="font-bold text-gray-900">${finalCostText}</p>
+                            <span class="text-xs font-bold text-brand bg-blue-50 px-2 py-1 rounded">Queued</span>
+                        </div>
+                    `;
+                    historyList.insertBefore(newHistoryItem, historyList.firstChild);
+                }
+            } catch (error) {
+                btn.innerHTML = 'Error. Check Backend.';
+            }
+        });
+
+        function findNearestKiosks() {
+            document.getElementById('kioskList').innerHTML = '<p class="text-center py-4 text-gray-500"><i class="fas fa-sync fa-spin mr-2"></i> Syncing with supply chain logs...</p>';
+            
+            setTimeout(() => {
+                document.getElementById('kioskList').innerHTML = `
+                    <div class="p-4 border border-blue-100 bg-blue-50/50 rounded-xl">
+                        <div class="flex justify-between items-start mb-2">
+                            <h4 class="font-bold text-gray-800">Main Campus Library</h4>
+                            <span class="text-xs font-bold bg-green-100 text-green-700 px-2 py-1 rounded">0.2 km away</span>
+                        </div>
+                        <p class="text-sm text-gray-600 mb-2">Available: A4 Standard, A3, Lamination.</p>
+                        <div class="text-xs text-red-600 font-medium bg-red-50 p-2 rounded flex items-center">
+                            <i class="fas fa-calendar-alt mr-2 text-lg"></i> 
+                            Out of Photo Paper. Supply Chain Restock Scheduled: Tomorrow, 9:00 AM.
+                        </div>
+                    </div>
+                    <div class="p-4 border border-gray-200 rounded-xl">
+                        <div class="flex justify-between items-start mb-2">
+                            <h4 class="font-bold text-gray-800">Engineering Block</h4>
+                            <span class="text-xs font-bold bg-gray-100 text-gray-600 px-2 py-1 rounded">1.1 km away</span>
+                        </div>
+                        <p class="text-sm text-gray-600 mb-2">Available: A4 Standard, Photo Paper.</p>
+                        <div class="text-xs text-blue-600 font-medium bg-blue-50 p-2 rounded flex items-center">
+                            <i class="fas fa-box text-lg mr-2"></i> 
+                            Spiral Binding Coils arriving in next campus delivery: Thursday, 2:00 PM.
+                        </div>
+                    </div>
+                `;
+            }, 800);
+        }
+    </script>
+</body>
+</html>
